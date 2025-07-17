@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kesim Optimizasyon Aracı</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Kesim Optimizasyon Aracı</h1>
+      <p class="tagline">Akıllı kesim ve kaynak mantığı ile fireyi minimize edin</p>
+    </header>
+
+    <main>
+      <section class="input-section">
+        <div class="card">
+          <h2>Gerekli Parçalar</h2>
+          
+          <!-- Input Mode Toggle -->
+          <div class="input-mode-toggle">
+            <button id="single-mode-btn" class="mode-btn active">Tekli Giriş</button>
+            <button id="bulk-mode-btn" class="mode-btn">Toplu Giriş</button>
+          </div>
+          
+          <!-- Single Input Mode -->
+          <div id="single-input-mode" class="input-mode">
+            <div class="input-grid">
+              <div class="input-group">
+                <label for="pos-input">Poz No</label>
+                <input type="text" id="pos-input" placeholder="örn. P1">
+              </div>
+              <div class="input-group">
+                <label for="length-input">Uzunluk (mm)</label>
+                <input type="number" id="length-input" placeholder="örn. 7500">
+              </div>
+              <div class="input-group">
+                <label for="quantity-input">Adet</label>
+                <input type="number" id="quantity-input" placeholder="örn. 3" min="1" value="1">
+              </div>
+              <button id="add-part-btn" class="btn-secondary">Parça Ekle</button>
+            </div>
+            
+            <div class="quick-lengths">
+              <h3>Sık Kullanılan Uzunluklar</h3>
+              <div class="quick-buttons">
+                <button class="btn-text" data-length="6000">6000mm</button>
+                <button class="btn-text" data-length="7500">7500mm</button>
+                <button class="btn-text" data-length="9000">9000mm</button>
+                <button class="btn-text" data-length="12000">12000mm</button>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Bulk Input Mode -->
+          <div id="bulk-input-mode" class="input-mode hidden">
+            <div class="bulk-input-container">
+              <div class="bulk-input-header">
+                <h3>Toplu Veri Girişi</h3>
+                <p class="helper-text">Her satıra bir parça yazın. Format: PozNo Uzunluk Adet (örn: P1 7500 3)</p>
+              </div>
+              
+              <div class="bulk-input-area">
+                <textarea id="bulk-input-textarea" placeholder="P1 7500 3&#10;P2 6000 2&#10;P3 4500 1&#10;P4 3000 4"></textarea>
+                <div class="bulk-input-actions">
+                  <button id="parse-bulk-btn" class="btn-secondary">Parçaları Ekle</button>
+                  <button id="clear-bulk-btn" class="btn-text">Temizle</button>
+                </div>
+              </div>
+              
+              <div class="bulk-input-examples">
+                <h4>Örnek Formatlar:</h4>
+                <div class="example-formats">
+                  <code>P1 7500 3</code> - P1 pozunda 7500mm uzunluğunda 3 adet
+                  <br>
+                  <code>K2 6000 1</code> - K2 pozunda 6000mm uzunluğunda 1 adet
+                  <br>
+                  <code>A15 4500 2</code> - A15 pozunda 4500mm uzunluğunda 2 adet
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="parts-list-container">
+            <h3>Parça Listesi</h3>
+            <div class="parts-list-header">
+              <span>Poz No</span>
+              <span>Uzunluk</span>
+              <span>Adet</span>
+              <span>İşlemler</span>
+            </div>
+            <ul id="parts-list" class="parts-list"></ul>
+            <div class="actions">
+              <button id="clear-parts-btn" class="btn-text">Tümünü Temizle</button>
+              <button id="calculate-btn" class="btn-primary">Optimum Kesimi Hesapla</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card settings-card">
+          <h2>Ayarlar</h2>
+          <div class="setting-item">
+            <label for="stock-length">Stok Profil Uzunluğu (mm)</label>
+            <input type="number" id="stock-length" value="12000">
+          </div>
+          <div class="setting-item">
+            <label for="weld-tolerance">Kaynak Toleransı (±mm)</label>
+            <input type="number" id="weld-tolerance" value="10">
+          </div>
+          <div class="setting-item">
+            <label for="min-fire">Minimum Fire Uzunluğu (mm)</label>
+            <input type="number" id="min-fire" value="100">
+          </div>
+        </div>
+      </section>
+
+      <section class="results-section" id="results-section">
+        <div class="card results-card">
+          <h2>Optimizasyon Sonuçları</h2>
+          <div id="results-placeholder" class="results-placeholder">
+            <p>Gerekli parçaları girin ve "Optimum Kesimi Hesapla" butonuna tıklayın</p>
+          </div>
+          <div id="results-content" class="results-content hidden">
+            <div class="summary">
+              <div class="summary-item">
+                <h4>Toplam Stok Profil</h4>
+                <p id="total-bars">0</p>
+              </div>
+              <div class="summary-item">
+                <h4>Malzeme Kullanımı</h4>
+                <p id="utilization">0%</p>
+              </div>
+              <div class="summary-item">
+                <h4>Kaynaklı Parçalar</h4>
+                <p id="welded-parts">0</p>
+              </div>
+            </div>
+            
+            <div id="stock-bars-container" class="stock-bars-container"></div>
+            
+            <div id="fire-pieces-container" class="fire-pieces-container">
+              <h3>Kullanılabilir Fire Parçalar</h3>
+              <div id="fire-pieces-list" class="fire-pieces-list"></div>
+            </div>
+            
+            <div id="welded-parts-container" class="welded-parts-container">
+              <h3>Kaynaklı Parçalar</h3>
+              <div id="welded-parts-list" class="welded-parts-list"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>Kesim Optimizasyon Aracı - Verimli malzeme kullanımı için ❤️ ile yapıldı</p>
+    </footer>
+  </div>
+
+  <script src="js/utils.js"></script>
+  <script src="js/fireManager.js"></script>
+  <script src="js/optimizer.js"></script>
+  <script src="js/visualizer.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
