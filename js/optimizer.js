@@ -1,7 +1,7 @@
 /**
  * Kesim optimizasyon sınıfı
  */
-class CuttingOptimizer {
+export class CuttingOptimizer {
   constructor(stockLength = 12000, weldTolerance = 10, minFireLength = 100) {
     this.stockLength = stockLength;
     this.weldTolerance = weldTolerance;
