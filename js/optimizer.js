@@ -161,8 +161,7 @@ class CuttingOptimizer {
           targetLength: targetLength,
           actualLength: fire.length,
           tolerance: fire.length - targetLength,
-          parts: [fire],
-          method: 'single'
+          pieces: [{ name: fire.source, length: fire.length }]
         });
         
         usedFires.push(fire);
@@ -197,8 +196,10 @@ class CuttingOptimizer {
             targetLength: targetLength,
             actualLength: totalLength,
             tolerance: totalLength - targetLength,
-            parts: [fire1, fire2],
-            method: 'double'
+            pieces: [
+              { name: fire1.source, length: fire1.length },
+              { name: fire2.source, length: fire2.length }
+            ]
           });
           
           usedFires.push(fire1, fire2);
@@ -236,8 +237,11 @@ class CuttingOptimizer {
               targetLength: targetLength,
               actualLength: totalLength,
               tolerance: totalLength - targetLength,
-              parts: [fire1, fire2, fire3],
-              method: 'triple'
+              pieces: [
+                { name: fire1.source, length: fire1.length },
+                { name: fire2.source, length: fire2.length },
+                { name: fire3.source, length: fire3.length }
+              ]
             });
             
             usedFires.push(fire1, fire2, fire3);

@@ -82,8 +82,10 @@ class FireManager {
             targetLength: targetLength,
             actualLength: totalLength,
             tolerance: totalLength - targetLength,
-            parts: [fire1, fire2],
-            method: 'double'
+            pieces: [
+              { name: fire1.source, length: fire1.length },
+              { name: fire2.source, length: fire2.length }
+            ]
           };
           
           ekParts.push(ekPart);
@@ -113,8 +115,11 @@ class FireManager {
               targetLength: targetLength,
               actualLength: totalLength,
               tolerance: totalLength - targetLength,
-              parts: [fire1, fire2, fire3],
-              method: 'triple'
+              pieces: [
+                { name: fire1.source, length: fire1.length },
+                { name: fire2.source, length: fire2.length },
+                { name: fire3.source, length: fire3.length }
+              ]
             };
             
             ekParts.push(ekPart);
@@ -150,8 +155,8 @@ class FireManager {
     
     console.log('\n📊 EK PARÇA ÖZETİ:');
     ekParts.forEach(ek => {
-      const partsStr = ek.parts.map(p => `${p.length}mm`).join(' + ');
-      console.log(`  ${ek.position}: ${partsStr} = ${ek.actualLength}mm (${ek.method})`);
+      const partsStr = ek.pieces.map(p => `${p.length}mm`).join(' + ');
+      console.log(`  ${ek.position}: ${partsStr} = ${ek.actualLength}mm`);
     });
   }
 }
