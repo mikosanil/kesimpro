@@ -227,6 +227,7 @@ class CuttingOptimizer {
     
     const optimizedPlan = [...initialPlan];
     const usedCombinations = [];
+    const satisfiedParts = []; // Karşılanan parçaları takip et
     
     // Her gerekli uzunluk için fire kombinasyonu ara
     neededLengths.forEach(targetLength => {
@@ -248,33 +249,34 @@ class CuttingOptimizer {
           }
         });
         
-        // Yeni bir "sanal" profil ekle (kaynaklı parça için)
-        optimizedPlan.push({
-          id: `W${usedCombinations.length}`,
-          cuts: [{
-            position: `${targetLength}mm-WELDED`,
-            length: bestCombination.totalLength
-          }],
-          remainingLength: this.stockLength - bestCombination.totalLength,
-          isWelded: true,
-          weldedFrom: bestCombination.fires.map(f => f.name)
-        });
-        
-        // Bu uzunluktaki bir parçayı "karşılandı" olarak işaretle
-        const partIndex = remainingParts.findIndex(p => p.length === targetLength);
-        if (partIndex !== -1) {
-          remainingParts.splice(partIndex, 1);
-          console.log(`   ✅ ${targetLength}mm parça fire kombinasyonu ile karşılandı`);
+        // Bu uzunluktaki parçaları "karşılandı" olarak işaretle
+        const partsToSatisfy = remainingParts.filter(p => p.length === targetLength);
+        if (partsToSatisfy.length > 0) {
+          // Sadece bir tanesini karşıla
+          const satisfiedPart = partsToSatisfy[0];
+          satisfiedParts.push(satisfiedPart);
+          console.log(`   ✅ ${satisfiedPart.position} (${targetLength}mm) fire kombinasyonu ile karşılandı`);
         }
       }
     });
     
     console.log(`🎯 ${usedCombinations.length} adet fire kombinasyonu kullanıldı`);
     
+    // Karşılanan parçaları remainingParts'tan çıkar
+    satisfiedParts.forEach(satisfiedPart => {
+      const index = remainingParts.findIndex(p => p.position === satisfiedPart.position);
+      if (index !== -1) {
+        remainingParts.splice(index, 1);
+      }
+    });
+    
+    console.log(`📋 ${remainingParts.length} adet parça kaldı`);
+    
     return {
       plan: optimizedPlan,
       usedCombinations: usedCombinations,
-      remainingParts: remainingParts
+      remainingParts: remainingParts,
+      satisfiedParts: satisfiedParts
     };
   }
   
@@ -311,8 +313,11 @@ class CuttingOptimizer {
   executeFinalCutting(optimizedResult, weldedParts) {
     console.log('\n🏁 FINAL KESİM GERÇEKLEŞTİRİLİYOR...');
     
-    const { plan, usedCombinations, remainingParts } = optimizedResult;
+    const { plan, usedCombinations, remainingParts, satisfiedParts } = optimizedResult;
     const stockBars = [];
+    
+    console.log(`🔥 ${satisfiedParts ? satisfiedParts.length : 0} parça fire kombinasyonu ile karşılandı`);
+    console.log(`📋 ${remainingParts.length} parça için normal kesim gerekiyor`);
     
     // Kalan parçalar için yeni profiller ekle
     if (remainingParts.length > 0) {
@@ -370,11 +375,15 @@ class CuttingOptimizer {
     
     // Kaynaklı parçaları oluştur
     usedCombinations.forEach((combination, index) => {
+      // Hangi parça için oluşturuldu bul
+      const targetPart = satisfiedParts && satisfiedParts.length > index ? satisfiedParts[index] : null;
+      const position = targetPart ? targetPart.position : `W${index + 1}`;
+      
       weldedParts.push({
-        position: `W${index + 1}`,
+        position: position,
         targetLength: combination.totalLength,
         actualLength: combination.totalLength,
-        tolerance: 0,
+        tolerance: this.weldTolerance,
         pieces: combination.fires.map(fire => ({
           name: fire.name,
           length: fire.length
