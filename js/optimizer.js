@@ -24,8 +24,8 @@ class CuttingOptimizer {
    * Ana optimizasyon fonksiyonu
    */
   optimize(parts) {
-    console.log('🚀 KESIM OPTİMİZASYONU BAŞLIYOR...');
-    console.log('Parçalar:', parts);
+    console.log('🚀 AKILLI KESIM OPTİMİZASYONU BAŞLIYOR...');
+    console.log('Gelen parçalar:', parts);
     
     if (!parts || parts.length === 0) {
       return this.createEmptyResults();
@@ -35,45 +35,13 @@ class CuttingOptimizer {
     const flatParts = this.flattenParts(parts);
     console.log('Düzleştirilmiş parçalar:', flatParts);
     
-    // Akıllı optimizasyon: fire'ları kullanarak ihtiyaç duyulan parçaları oluştur
-    const optimizationResult = this.smartOptimization(flatParts);
-    const stockBars = optimizationResult.stockBars;
-    const weldedParts = optimizationResult.weldedParts;
-    
-    console.log('Hesaplanan kesimler:', stockBars);
-    
-    // Fire parçaları topla
-    const fireManager = new FireManager();
-    const firePieces = fireManager.collectFireParts(stockBars);
-    console.log('Fire parçalar:', firePieces);
-    
-    // Ek kaynaklı parçalar oluştur (kalan fire'lardan)
-    const additionalWeldedParts = fireManager.createWeldedParts(firePieces, flatParts);
-    const allWeldedParts = [...weldedParts, ...additionalWeldedParts];
-    console.log('Tüm kaynaklı parçalar:', allWeldedParts);
-    
-    // Sonuçları hazırla
-    const results = {
-      stockBars: stockBars.map(bar => ({
-        id: bar.id,
-        cuts: bar.cuts,
-        remainingLength: bar.remainingLength,
-        efficiency: bar.efficiency
-      })),
-      firePieces: firePieces.map(fire => ({
-        name: fire.name,
-        length: fire.length,
-        stockBarIndex: fire.stockBarIndex
-      })),
-      weldedParts: allWeldedParts,
-      totalStockBars: stockBars.length,
-      materialUtilization: this.calculateMaterialUtilization(stockBars)
-    };
+    // Akıllı optimizasyon: Fire'ları kullanarak minimum profil sayısı
+    const optimizationResult = this.smartFireOptimization(flatParts);
     
     console.log('🎯 OPTİMİZASYON TAMAMLANDI!');
-    console.log('Sonuçlar:', results);
+    console.log('Sonuçlar:', optimizationResult);
     
-    return results;
+    return optimizationResult;
   }
   
   /**
@@ -85,9 +53,10 @@ class CuttingOptimizer {
     parts.forEach(part => {
       for (let i = 0; i < part.quantity; i++) {
         flatParts.push({
-          position: `${part.position}`,
+          position: `${part.position}-${i + 1}`,
           length: part.length,
-          originalPosition: part.position
+          originalPosition: part.position,
+          needed: true
         });
       }
     });
@@ -99,17 +68,18 @@ class CuttingOptimizer {
   }
   
   /**
-   * Akıllı optimizasyon: Fire'ları kullanarak ihtiyaç duyulan parçaları oluştur
+   * Akıllı fire optimizasyonu
    */
-  smartOptimization(flatParts) {
-    console.log('\n🧠 AKILLI OPTİMİZASYON BAŞLIYOR...');
+  smartFireOptimization(flatParts) {
+    console.log('\n🧠 AKILLI FIRE OPTİMİZASYONU BAŞLIYOR...');
     
     const stockBars = [];
     const weldedParts = [];
     const remainingParts = [...flatParts];
     let barId = 1;
     
-    // İlk geçiş: Normal kesimler
+    // İlk geçiş: Normal kesimler yap
+    console.log('\n📏 İLK GEÇİŞ: Normal kesimler...');
     while (remainingParts.length > 0) {
       const stockBar = {
         id: barId++,
@@ -135,6 +105,7 @@ class CuttingOptimizer {
             stockBar.remainingLength -= part.length;
             remainingParts.splice(i, 1);
             placed = true;
+            console.log(`  ✂️ ${part.position} (${part.length}mm) kesildi`);
             break;
           }
         }
@@ -145,23 +116,46 @@ class CuttingOptimizer {
       stockBar.efficiency = Math.round((usedLength / this.stockLength) * 100);
       
       stockBars.push(stockBar);
-      console.log(`Profil #${stockBar.id}: ${stockBar.cuts.length} parça, ${stockBar.efficiency}% verimlilik, Fire: ${stockBar.remainingLength}mm`);
+      console.log(`📊 Profil #${stockBar.id}: ${stockBar.cuts.length} parça, ${stockBar.efficiency}% verimlilik, Fire: ${stockBar.remainingLength}mm`);
     }
     
-    // İkinci geçiş: Fire'ları kullanarak kaynaklı parçalar oluştur
-    this.createWeldedPartsFromFires(stockBars, flatParts, weldedParts);
+    // İkinci geçiş: Fire'ları analiz et ve kaynaklı parçalar oluştur
+    console.log('\n🔥 İKİNCİ GEÇİŞ: Fire analizi...');
+    const fires = this.collectFires(stockBars);
     
-    return { stockBars, weldedParts };
+    if (fires.length >= 2) {
+      console.log('\n🔧 ÜÇÜNCÜ GEÇİŞ: Fire kaynak optimizasyonu...');
+      this.optimizeWithFireWelding(flatParts, fires, stockBars, weldedParts);
+    }
+    
+    // Fire parçaları topla (son durum)
+    const finalFires = this.collectFires(stockBars);
+    
+    // Sonuçları hazırla
+    return {
+      stockBars: stockBars.map(bar => ({
+        id: bar.id,
+        cuts: bar.cuts,
+        remainingLength: bar.remainingLength,
+        efficiency: bar.efficiency
+      })),
+      firePieces: finalFires.map(fire => ({
+        name: fire.name,
+        length: fire.length,
+        stockBarIndex: fire.stockBarIndex
+      })),
+      weldedParts: weldedParts,
+      totalStockBars: stockBars.length,
+      materialUtilization: this.calculateMaterialUtilization(stockBars)
+    };
   }
   
   /**
-   * Fire parçalarından kaynaklı parçalar oluştur
+   * Fire parçaları topla
    */
-  createWeldedPartsFromFires(stockBars, originalParts, weldedParts) {
-    console.log('\n🔧 FIRE\'LARDAN KAYNAKLI PARÇA OLUŞTURMA...');
-    
-    // Fire parçaları topla
+  collectFires(stockBars) {
     const fires = [];
+    
     stockBars.forEach((bar, index) => {
       if (bar.remainingLength >= this.minFireLength) {
         fires.push({
@@ -173,35 +167,42 @@ class CuttingOptimizer {
       }
     });
     
-    if (fires.length === 0) {
-      console.log('❌ Yeterli fire parça yok');
-      return;
-    }
-    
     console.log(`🔥 ${fires.length} adet fire parça bulundu:`, fires.map(f => `${f.name}:${f.length}mm`));
-    
-    // Benzersiz parça uzunluklarını al
+    return fires;
+  }
+  
+  /**
+   * Fire kaynak optimizasyonu
+   */
+  optimizeWithFireWelding(originalParts, fires, stockBars, weldedParts) {
+    // Benzersiz uzunlukları al
     const uniqueLengths = [...new Set(originalParts.map(p => p.length))];
-    uniqueLengths.sort((a, b) => b - a); // Büyükten küçüğe
+    uniqueLengths.sort((a, b) => b - a);
+    
+    console.log('🎯 Hedef uzunluklar:', uniqueLengths);
     
     // Her uzunluk için fire kombinasyonları dene
     uniqueLengths.forEach(targetLength => {
-      this.tryCreateWeldedPart(fires, targetLength, weldedParts);
-    });
-    
-    // Standart uzunluklar için de dene
-    const standardLengths = [9000, 7500, 6000, 4500, 4000, 3500, 3000];
-    standardLengths.forEach(targetLength => {
-      if (!uniqueLengths.includes(targetLength)) {
-        this.tryCreateWeldedPart(fires, targetLength, weldedParts);
+      const canCreate = this.canCreateFromFires(fires, targetLength);
+      
+      if (canCreate.possible) {
+        console.log(`\n💡 ${targetLength}mm için fire kombinasyonu bulundu!`);
+        
+        // Yeni bir profil oluştur veya mevcut profili optimize et
+        const optimized = this.tryOptimizeWithWelding(originalParts, targetLength, canCreate, stockBars, weldedParts);
+        
+        if (optimized) {
+          // Fire'ları kullanıldı olarak işaretle
+          canCreate.fires.forEach(fire => fire.used = true);
+        }
       }
     });
   }
   
   /**
-   * Belirli uzunluk için kaynaklı parça oluşturmaya çalış
+   * Fire'lardan belirli uzunluk oluşturulabilir mi kontrol et
    */
-  tryCreateWeldedPart(fires, targetLength, weldedParts) {
+  canCreateFromFires(fires, targetLength) {
     const tolerance = this.calculateWeldTolerance(targetLength);
     
     // İki parça kombinasyonu
@@ -216,68 +217,83 @@ class CuttingOptimizer {
         const difference = Math.abs(totalLength - targetLength);
         
         if (difference <= tolerance) {
-          const weldedPart = {
-            position: `W${weldedParts.length + 1}-${targetLength}`,
-            targetLength: targetLength,
+          return {
+            possible: true,
+            fires: [fire1, fire2],
             actualLength: totalLength,
-            tolerance: difference,
-            pieces: [
-              { name: fire1.name, length: fire1.length },
-              { name: fire2.name, length: fire2.length }
-            ]
+            difference: difference
           };
-          
-          weldedParts.push(weldedPart);
-          fire1.used = true;
-          fire2.used = true;
-          
-          console.log(`  ✅ ${weldedPart.position}: ${fire1.name}(${fire1.length}mm) + ${fire2.name}(${fire2.length}mm) = ${totalLength}mm (hedef: ${targetLength}mm, fark: ${difference}mm)`);
-          return true;
         }
       }
     }
     
-    // Üç parça kombinasyonu (büyük parçalar için)
-    if (targetLength > 6000) {
-      for (let i = 0; i < fires.length; i++) {
-        for (let j = i + 1; j < fires.length; j++) {
-          for (let k = j + 1; k < fires.length; k++) {
-            const fire1 = fires[i];
-            const fire2 = fires[j];
-            const fire3 = fires[k];
-            
-            if (fire1.used || fire2.used || fire3.used) continue;
-            
-            const totalLength = fire1.length + fire2.length + fire3.length - (this.weldTolerance * 2);
-            const difference = Math.abs(totalLength - targetLength);
-            
-            if (difference <= tolerance) {
-              const weldedPart = {
-                position: `W${weldedParts.length + 1}-${targetLength}`,
-                targetLength: targetLength,
-                actualLength: totalLength,
-                tolerance: difference,
-                pieces: [
-                  { name: fire1.name, length: fire1.length },
-                  { name: fire2.name, length: fire2.length },
-                  { name: fire3.name, length: fire3.length }
-                ]
-              };
-              
-              weldedParts.push(weldedPart);
-              fire1.used = true;
-              fire2.used = true;
-              fire3.used = true;
-              
-              console.log(`  ✅ ${weldedPart.position}: ${fire1.name}(${fire1.length}mm) + ${fire2.name}(${fire2.length}mm) + ${fire3.name}(${fire3.length}mm) = ${totalLength}mm (hedef: ${targetLength}mm, fark: ${difference}mm)`);
-              return true;
-            }
+    // Üç parça kombinasyonu
+    for (let i = 0; i < fires.length; i++) {
+      for (let j = i + 1; j < fires.length; j++) {
+        for (let k = j + 1; k < fires.length; k++) {
+          const fire1 = fires[i];
+          const fire2 = fires[j];
+          const fire3 = fires[k];
+          
+          if (fire1.used || fire2.used || fire3.used) continue;
+          
+          const totalLength = fire1.length + fire2.length + fire3.length - (this.weldTolerance * 2);
+          const difference = Math.abs(totalLength - targetLength);
+          
+          if (difference <= tolerance) {
+            return {
+              possible: true,
+              fires: [fire1, fire2, fire3],
+              actualLength: totalLength,
+              difference: difference
+            };
           }
         }
       }
     }
     
-    return false;
+    return { possible: false };
+  }
+  
+  /**
+   * Kaynak ile optimizasyon dene
+   */
+  tryOptimizeWithWelding(originalParts, targetLength, weldInfo, stockBars, weldedParts) {
+    // Bu uzunlukta kaç parça gerekiyor?
+    const neededCount = originalParts.filter(p => p.length === targetLength).length;
+    const currentWeldedCount = weldedParts.filter(w => w.targetLength === targetLength).length;
+    
+    if (currentWeldedCount >= neededCount) {
+      console.log(`  ⏭️ ${targetLength}mm için yeterli kaynaklı parça var`);
+      return false;
+    }
+    
+    // Kaynaklı parça oluştur
+    const weldedPart = {
+      position: `W${weldedParts.length + 1}-${targetLength}`,
+      targetLength: targetLength,
+      actualLength: weldInfo.actualLength,
+      tolerance: weldInfo.difference,
+      pieces: weldInfo.fires.map(fire => ({
+        name: fire.name,
+        length: fire.length
+      }))
+    };
+    
+    weldedParts.push(weldedPart);
+    
+    const fireNames = weldInfo.fires.map(f => `${f.name}(${f.length}mm)`).join(' + ');
+    console.log(`  ✅ ${weldedPart.position}: ${fireNames} = ${weldInfo.actualLength}mm (hedef: ${targetLength}mm)`);
+    
+    // Fire'ları kullanıldı olarak işaretle (stockBars'da)
+    weldInfo.fires.forEach(fire => {
+      const stockBar = stockBars[fire.stockBarIndex];
+      if (stockBar) {
+        stockBar.remainingLength = 0; // Fire kullanıldı
+      }
+    });
+    
+    return true;
   }
   
   /**
@@ -288,56 +304,6 @@ class CuttingOptimizer {
     if (targetLength <= 3000) return 100;
     if (targetLength <= 6000) return 150;
     return 200;
-  }
-  
-  /**
-   * Optimum kesim düzenini hesapla
-   */
-  calculateOptimalCuts(flatParts) {
-    const stockBars = [];
-    const remainingParts = [...flatParts];
-    let barId = 1;
-    
-    while (remainingParts.length > 0) {
-      const stockBar = {
-        id: barId++,
-        cuts: [],
-        remainingLength: this.stockLength,
-        efficiency: 0
-      };
-      
-      // Bu profilde mümkün olduğunca çok parça yerleştir
-      let i = 0;
-      while (i < remainingParts.length) {
-        const part = remainingParts[i];
-        
-        if (part.length <= stockBar.remainingLength) {
-          // Parçayı ekle
-          stockBar.cuts.push({
-            position: part.position,
-            length: part.length
-          });
-          
-          stockBar.remainingLength -= part.length;
-          remainingParts.splice(i, 1);
-          
-          // Baştan başla (daha iyi kombinasyon bulabilmek için)
-          i = 0;
-        } else {
-          i++;
-        }
-      }
-      
-      // Verimliliği hesapla
-      const usedLength = this.stockLength - stockBar.remainingLength;
-      stockBar.efficiency = Math.round((usedLength / this.stockLength) * 100);
-      
-      stockBars.push(stockBar);
-      
-      console.log(`Profil #${stockBar.id}: ${stockBar.cuts.length} parça, ${stockBar.efficiency}% verimlilik`);
-    }
-    
-    return stockBars;
   }
   
   /**
