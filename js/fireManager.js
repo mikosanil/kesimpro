@@ -4,129 +4,132 @@
 class FireManager {
   constructor() {
     this.minFireLength = 100; // Minimum fire uzunluğu
+    this.weldTolerance = 10;   // Kaynak toleransı
   }
   
   /**
    * Kesimlerden fire parçaları topla
    */
-  collectFireParts(cuts) {
-    const fireParts = [];
+  collectFireParts(stockBars) {
+    const firePieces = [];
     
-    cuts.forEach(cut => {
-      if (cut.fireLength >= this.minFireLength) {
-        fireParts.push({
-          cutId: cut.id,
-          length: cut.fireLength,
-          source: `Profil-${cut.id}`,
-          originalCut: cut
+    stockBars.forEach((bar, index) => {
+      if (bar.remainingLength >= this.minFireLength) {
+        firePieces.push({
+          name: `F${index + 1}`,
+          length: bar.remainingLength,
+          stockBarIndex: index,
+          source: `Profil-${bar.id}`
         });
       }
     });
     
     // Fire parçaları uzunluğa göre sırala (büyükten küçüğe)
-    fireParts.sort((a, b) => b.length - a.length);
+    firePieces.sort((a, b) => b.length - a.length);
     
-    console.log(`🔥 ${fireParts.length} adet fire parça toplandı`);
-    return fireParts;
+    console.log(`🔥 ${firePieces.length} adet fire parça toplandı`);
+    return firePieces;
   }
   
   /**
-   * Fire parçalardan EK parçalar oluştur
+   * Fire parçalardan kaynaklı parçalar oluştur
    */
-  createEkParts(fireParts) {
-    console.log('\n🔧 EK PARÇA OLUŞTURMA BAŞLIYOR...');
+  createWeldedParts(firePieces, originalParts) {
+    console.log('\n🔧 KAYNAKLI PARÇA OLUŞTURMA BAŞLIYOR...');
     
-    if (fireParts.length === 0) {
-      console.log('❌ EK parça oluşturmak için yeterli fire yok');
+    if (firePieces.length === 0) {
+      console.log('❌ Kaynaklı parça oluşturmak için yeterli fire yok');
       return [];
     }
     
-    const ekParts = [];
+    const weldedParts = [];
     const usedFires = [];
-    const targetLengths = [9000, 7500, 6000, 4500, 4000, 3500, 3000, 2500, 2000, 1500, 1000];
     
-    // Her hedef uzunluk için kombinasyonları dene
-    targetLengths.forEach(targetLength => {
-      this.createEkPartsForLength(fireParts, targetLength, ekParts, usedFires);
+    // Benzersiz parça uzunluklarını al
+    const uniqueLengths = [...new Set(originalParts.map(p => p.length))];
+    uniqueLengths.sort((a, b) => b - a); // Büyükten küçüğe sırala
+    
+    // Her benzersiz uzunluk için kaynaklı parça oluşturmaya çalış
+    uniqueLengths.forEach(targetLength => {
+      this.createWeldedPartsForLength(firePieces, targetLength, weldedParts, usedFires);
     });
     
-    // Kullanılan fire'ları listeden çıkar
-    this.removeUsedFires(fireParts, usedFires);
+    // Genel amaçlı EK parçalar oluştur
+    this.createGeneralEkParts(firePieces, weldedParts, usedFires);
     
-    console.log(`✅ ${ekParts.length} adet EK parça oluşturuldu`);
-    this.logEkPartsSummary(ekParts);
-    
-    return ekParts;
+    console.log(`✅ ${weldedParts.length} adet kaynaklı parça oluşturuldu`);
+    return weldedParts;
   }
   
   /**
-   * Belirli uzunluk için EK parçalar oluştur
+   * Belirli uzunluk için kaynaklı parçalar oluştur
    */
-  createEkPartsForLength(fireParts, targetLength, ekParts, usedFires) {
-    const tolerance = Math.max(targetLength * 0.05, 50); // %5 tolerans
-    const weldTolerance = 10;
+  createWeldedPartsForLength(firePieces, targetLength, weldedParts, usedFires) {
+    const tolerance = this.calculateTolerance(targetLength);
     
     // İki parça kombinasyonu
-    for (let i = 0; i < fireParts.length; i++) {
-      for (let j = i + 1; j < fireParts.length; j++) {
-        const fire1 = fireParts[i];
-        const fire2 = fireParts[j];
+    for (let i = 0; i < firePieces.length; i++) {
+      for (let j = i + 1; j < firePieces.length; j++) {
+        const fire1 = firePieces[i];
+        const fire2 = firePieces[j];
         
         if (usedFires.includes(fire1) || usedFires.includes(fire2)) continue;
         
-        const totalLength = fire1.length + fire2.length - weldTolerance;
+        const totalLength = fire1.length + fire2.length - this.weldTolerance;
         
         if (Math.abs(totalLength - targetLength) <= tolerance) {
-          const ekPart = {
-            position: `EK${ekParts.length + 1}`,
+          const weldedPart = {
+            position: `${this.getPositionForLength(targetLength)}-W${weldedParts.length + 1}`,
             targetLength: targetLength,
             actualLength: totalLength,
-            tolerance: totalLength - targetLength,
+            tolerance: Math.abs(totalLength - targetLength),
             pieces: [
-              { name: fire1.source, length: fire1.length },
-              { name: fire2.source, length: fire2.length }
+              { name: fire1.name, length: fire1.length },
+              { name: fire2.name, length: fire2.length }
             ]
           };
           
-          ekParts.push(ekPart);
+          weldedParts.push(weldedPart);
           usedFires.push(fire1, fire2);
           
-          console.log(`  🔗 EK${ekParts.length}: ${fire1.length}mm + ${fire2.length}mm = ${totalLength}mm (hedef: ${targetLength}mm)`);
+          console.log(`  🔗 ${weldedPart.position}: ${fire1.length}mm + ${fire2.length}mm = ${totalLength}mm (hedef: ${targetLength}mm)`);
           return; // Bu uzunluk için bir tane yeter
         }
       }
     }
     
-    // Üç parça kombinasyonu
-    for (let i = 0; i < fireParts.length; i++) {
-      for (let j = i + 1; j < fireParts.length; j++) {
-        for (let k = j + 1; k < fireParts.length; k++) {
-          const fire1 = fireParts[i];
-          const fire2 = fireParts[j];
-          const fire3 = fireParts[k];
-          
-          if (usedFires.includes(fire1) || usedFires.includes(fire2) || usedFires.includes(fire3)) continue;
-          
-          const totalLength = fire1.length + fire2.length + fire3.length - (weldTolerance * 2);
-          
-          if (Math.abs(totalLength - targetLength) <= tolerance) {
-            const ekPart = {
-              position: `EK${ekParts.length + 1}`,
-              targetLength: targetLength,
-              actualLength: totalLength,
-              tolerance: totalLength - targetLength,
-              pieces: [
-                { name: fire1.source, length: fire1.length },
-                { name: fire2.source, length: fire2.length },
-                { name: fire3.source, length: fire3.length }
-              ]
-            };
+    // Üç parça kombinasyonu (büyük parçalar için)
+    if (targetLength > 6000) {
+      for (let i = 0; i < firePieces.length; i++) {
+        for (let j = i + 1; j < firePieces.length; j++) {
+          for (let k = j + 1; k < firePieces.length; k++) {
+            const fire1 = firePieces[i];
+            const fire2 = firePieces[j];
+            const fire3 = firePieces[k];
             
-            ekParts.push(ekPart);
-            usedFires.push(fire1, fire2, fire3);
+            if (usedFires.includes(fire1) || usedFires.includes(fire2) || usedFires.includes(fire3)) continue;
             
-            console.log(`  🔗🔗 EK${ekParts.length}: ${fire1.length}mm + ${fire2.length}mm + ${fire3.length}mm = ${totalLength}mm (hedef: ${targetLength}mm)`);
-            return; // Bu uzunluk için bir tane yeter
+            const totalLength = fire1.length + fire2.length + fire3.length - (this.weldTolerance * 2);
+            
+            if (Math.abs(totalLength - targetLength) <= tolerance) {
+              const weldedPart = {
+                position: `${this.getPositionForLength(targetLength)}-W${weldedParts.length + 1}`,
+                targetLength: targetLength,
+                actualLength: totalLength,
+                tolerance: Math.abs(totalLength - targetLength),
+                pieces: [
+                  { name: fire1.name, length: fire1.length },
+                  { name: fire2.name, length: fire2.length },
+                  { name: fire3.name, length: fire3.length }
+                ]
+              };
+              
+              weldedParts.push(weldedPart);
+              usedFires.push(fire1, fire2, fire3);
+              
+              console.log(`  🔗🔗 ${weldedPart.position}: ${fire1.length}mm + ${fire2.length}mm + ${fire3.length}mm = ${totalLength}mm (hedef: ${targetLength}mm)`);
+              return; // Bu uzunluk için bir tane yeter
+            }
           }
         }
       }
@@ -134,29 +137,64 @@ class FireManager {
   }
   
   /**
-   * Kullanılan fire'ları listeden çıkar
+   * Genel amaçlı EK parçalar oluştur
    */
-  removeUsedFires(fireParts, usedFires) {
-    usedFires.forEach(usedFire => {
-      const index = fireParts.findIndex(fire => 
-        fire.cutId === usedFire.cutId && fire.length === usedFire.length
-      );
-      if (index !== -1) {
-        fireParts.splice(index, 1);
+  createGeneralEkParts(firePieces, weldedParts, usedFires) {
+    const standardLengths = [9000, 7500, 6000, 4500, 4000, 3500, 3000, 2500, 2000, 1500, 1000];
+    
+    standardLengths.forEach(targetLength => {
+      const tolerance = this.calculateTolerance(targetLength);
+      
+      // İki parça kombinasyonu
+      for (let i = 0; i < firePieces.length; i++) {
+        for (let j = i + 1; j < firePieces.length; j++) {
+          const fire1 = firePieces[i];
+          const fire2 = firePieces[j];
+          
+          if (usedFires.includes(fire1) || usedFires.includes(fire2)) continue;
+          
+          const totalLength = fire1.length + fire2.length - this.weldTolerance;
+          
+          if (Math.abs(totalLength - targetLength) <= tolerance) {
+            const ekPart = {
+              position: `EK${weldedParts.length + 1}`,
+              targetLength: targetLength,
+              actualLength: totalLength,
+              tolerance: Math.abs(totalLength - targetLength),
+              pieces: [
+                { name: fire1.name, length: fire1.length },
+                { name: fire2.name, length: fire2.length }
+              ]
+            };
+            
+            weldedParts.push(ekPart);
+            usedFires.push(fire1, fire2);
+            
+            console.log(`  🔗 ${ekPart.position}: ${fire1.length}mm + ${fire2.length}mm = ${totalLength}mm (hedef: ${targetLength}mm)`);
+            return; // Bu uzunluk için bir tane yeter
+          }
+        }
       }
     });
   }
   
   /**
-   * EK parçalar özetini logla
+   * Uzunluğa göre pozisyon adı oluştur
    */
-  logEkPartsSummary(ekParts) {
-    if (ekParts.length === 0) return;
-    
-    console.log('\n📊 EK PARÇA ÖZETİ:');
-    ekParts.forEach(ek => {
-      const partsStr = ek.pieces.map(p => `${p.length}mm`).join(' + ');
-      console.log(`  ${ek.position}: ${partsStr} = ${ek.actualLength}mm`);
-    });
+  getPositionForLength(length) {
+    if (length >= 9000) return 'L';
+    if (length >= 6000) return 'M';
+    if (length >= 3000) return 'S';
+    return 'XS';
+  }
+  
+  /**
+   * Tolerans hesapla
+   */
+  calculateTolerance(length) {
+    if (length <= 1000) return 50;   // 50mm tolerans
+    if (length <= 3000) return 100;  // 100mm tolerans
+    if (length <= 6000) return 150;  // 150mm tolerans
+    return 200; // 200mm tolerans
   }
 }
