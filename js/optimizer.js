@@ -1,5 +1,5 @@
 /**
- * Kesim optimizasyon sınıfı
+ * Kesim optimizasyon sınıfı - Gerçek fire optimizasyonu ile
  */
 class CuttingOptimizer {
   constructor(stockLength = 12000, weldTolerance = 10, minFireLength = 100) {
@@ -24,7 +24,7 @@ class CuttingOptimizer {
    * Ana optimizasyon fonksiyonu
    */
   optimize(parts) {
-    console.log('🚀 AKILLI KESIM OPTİMİZASYONU BAŞLIYOR...');
+    console.log('🚀 GERÇEK FIRE OPTİMİZASYONU BAŞLIYOR...');
     console.log('Gelen parçalar:', parts);
     
     if (!parts || parts.length === 0) {
@@ -35,8 +35,8 @@ class CuttingOptimizer {
     const flatParts = this.flattenParts(parts);
     console.log('Düzleştirilmiş parçalar:', flatParts);
     
-    // Akıllı optimizasyon: Fire'ları kullanarak minimum profil sayısı
-    const optimizationResult = this.smartFireOptimization(flatParts);
+    // YENİ YAKLAŞIM: Önce fire potansiyelini analiz et
+    const optimizationResult = this.fireAwareOptimization(flatParts);
     
     console.log('🎯 OPTİMİZASYON TAMAMLANDI!');
     console.log('Sonuçlar:', optimizationResult);
@@ -68,24 +68,48 @@ class CuttingOptimizer {
   }
   
   /**
-   * Akıllı fire optimizasyonu
+   * Fire-aware optimizasyon - Önce fire potansiyelini analiz et
    */
-  smartFireOptimization(flatParts) {
-    console.log('\n🧠 AKILLI FIRE OPTİMİZASYONU BAŞLIYOR...');
+  fireAwareOptimization(flatParts) {
+    console.log('\n🧠 FIRE-AWARE OPTİMİZASYON BAŞLIYOR...');
     
     const stockBars = [];
     const weldedParts = [];
     const remainingParts = [...flatParts];
     let barId = 1;
     
-    // İlk geçiş: Normal kesimler yap
-    console.log('\n📏 İLK GEÇİŞ: Normal kesimler...');
-    while (remainingParts.length > 0) {
-      const stockBar = {
+    // AŞAMA 1: İlk kesim planını yap (ama henüz kesin değil)
+    console.log('\n📋 AŞAMA 1: İlk kesim planı...');
+    const initialPlan = this.createInitialCuttingPlan(remainingParts);
+    
+    // AŞAMA 2: Fire potansiyelini analiz et
+    console.log('\n🔥 AŞAMA 2: Fire potansiyeli analizi...');
+    const fireAnalysis = this.analyzeFirePotential(initialPlan);
+    
+    // AŞAMA 3: Fire kombinasyonlarını kontrol et
+    console.log('\n🔧 AŞAMA 3: Fire kombinasyon kontrolü...');
+    const optimizedPlan = this.optimizeWithFireCombinations(initialPlan, fireAnalysis, remainingParts);
+    
+    // AŞAMA 4: Final kesimi yap
+    console.log('\n✂️ AŞAMA 4: Final kesim...');
+    const finalResult = this.executeFinalCutting(optimizedPlan, weldedParts);
+    
+    return finalResult;
+  }
+  
+  /**
+   * İlk kesim planını oluştur
+   */
+  createInitialCuttingPlan(parts) {
+    const plan = [];
+    const tempParts = [...parts];
+    let barId = 1;
+    
+    while (tempParts.length > 0) {
+      const bar = {
         id: barId++,
         cuts: [],
-        remainingLength: this.stockLength,
-        efficiency: 0
+        remainingLength: this.stockLength
       };
       
       // Bu profilde mümkün olduğunca çok parça yerleştir
@@ -93,207 +117,292 @@ class CuttingOptimizer {
       while (placed) {
         placed = false;
         
-        for (let i = 0; i < remainingParts.length; i++) {
-          const part = remainingParts[i];
+        for (let i = 0; i < tempParts.length; i++) {
+          const part = tempParts[i];
           
-          if (part.length <= stockBar.remainingLength) {
-            stockBar.cuts.push({
+          if (part.length <= bar.remainingLength) {
+            bar.cuts.push({
               position: part.position,
               length: part.length
             });
             
-            stockBar.remainingLength -= part.length;
-            remainingParts.splice(i, 1);
+            bar.remainingLength -= part.length;
+            tempParts.splice(i, 1);
             placed = true;
-            console.log(`  ✂️ ${part.position} (${part.length}mm) kesildi`);
             break;
           }
         }
       }
       
-      // Verimliliği hesapla
-      const usedLength = this.stockLength - stockBar.remainingLength;
-      stockBar.efficiency = Math.round((usedLength / this.stockLength) * 100);
-      
-      stockBars.push(stockBar);
-      console.log(`📊 Profil #${stockBar.id}: ${stockBar.cuts.length} parça, ${stockBar.efficiency}% verimlilik, Fire: ${stockBar.remainingLength}mm`);
+      plan.push(bar);
     }
     
-    // İkinci geçiş: Fire'ları analiz et ve kaynaklı parçalar oluştur
-    console.log('\n🔥 İKİNCİ GEÇİŞ: Fire analizi...');
-    const fires = this.collectFires(stockBars);
+    console.log(`📊 İlk plan: ${plan.length} profil gerekiyor`);
+    plan.forEach(bar => {
+      console.log(`  Profil #${bar.id}: ${bar.cuts.length} parça, Fire: ${bar.remainingLength}mm`);
+    });
     
-    if (fires.length >= 2) {
-      console.log('\n🔧 ÜÇÜNCÜ GEÇİŞ: Fire kaynak optimizasyonu...');
-      this.optimizeWithFireWelding(flatParts, fires, stockBars, weldedParts);
-    }
-    
-    // Fire parçaları topla (son durum)
-    const finalFires = this.collectFires(stockBars);
-    
-    // Sonuçları hazırla
-    return {
-      stockBars: stockBars.map(bar => ({
-        id: bar.id,
-        cuts: bar.cuts,
-        remainingLength: bar.remainingLength,
-        efficiency: bar.efficiency
-      })),
-      firePieces: finalFires.map(fire => ({
-        name: fire.name,
-        length: fire.length,
-        stockBarIndex: fire.stockBarIndex
-      })),
-      weldedParts: weldedParts,
-      totalStockBars: stockBars.length,
-      materialUtilization: this.calculateMaterialUtilization(stockBars)
-    };
+    return plan;
   }
   
   /**
-   * Fire parçaları topla
+   * Fire potansiyelini analiz et
    */
-  collectFires(stockBars) {
+  analyzeFirePotential(plan) {
     const fires = [];
     
-    stockBars.forEach((bar, index) => {
+    plan.forEach((bar, index) => {
       if (bar.remainingLength >= this.minFireLength) {
         fires.push({
           name: `F${index + 1}`,
           length: bar.remainingLength,
-          stockBarIndex: index,
-          used: false
+          barIndex: index
         });
       }
     });
     
-    console.log(`🔥 ${fires.length} adet fire parça bulundu:`, fires.map(f => `${f.name}:${f.length}mm`));
-    return fires;
+    console.log(`🔥 ${fires.length} adet fire bulundu:`, fires.map(f => `${f.name}:${f.length}mm`));
+    
+    // Fire kombinasyonlarını analiz et
+    const combinations = this.findFireCombinations(fires);
+    
+    return {
+      fires: fires,
+      combinations: combinations
+    };
   }
   
   /**
-   * Fire kaynak optimizasyonu
+   * Fire kombinasyonlarını bul
    */
-  optimizeWithFireWelding(originalParts, fires, stockBars, weldedParts) {
-    // Benzersiz uzunlukları al
-    const uniqueLengths = [...new Set(originalParts.map(p => p.length))];
-    uniqueLengths.sort((a, b) => b - a);
+  findFireCombinations(fires) {
+    const combinations = [];
     
-    console.log('🎯 Hedef uzunluklar:', uniqueLengths);
-    
-    // Her uzunluk için fire kombinasyonları dene
-    uniqueLengths.forEach(targetLength => {
-      const canCreate = this.canCreateFromFires(fires, targetLength);
-      
-      if (canCreate.possible) {
-        console.log(`\n💡 ${targetLength}mm için fire kombinasyonu bulundu!`);
-        
-        // Yeni bir profil oluştur veya mevcut profili optimize et
-        const optimized = this.tryOptimizeWithWelding(originalParts, targetLength, canCreate, stockBars, weldedParts);
-        
-        if (optimized) {
-          // Fire'ları kullanıldı olarak işaretle
-          canCreate.fires.forEach(fire => fire.used = true);
-        }
-      }
-    });
-  }
-  
-  /**
-   * Fire'lardan belirli uzunluk oluşturulabilir mi kontrol et
-   */
-  canCreateFromFires(fires, targetLength) {
-    const tolerance = this.calculateWeldTolerance(targetLength);
-    
-    // İki parça kombinasyonu
+    // İki parça kombinasyonları
     for (let i = 0; i < fires.length; i++) {
       for (let j = i + 1; j < fires.length; j++) {
         const fire1 = fires[i];
         const fire2 = fires[j];
-        
-        if (fire1.used || fire2.used) continue;
-        
         const totalLength = fire1.length + fire2.length - this.weldTolerance;
-        const difference = Math.abs(totalLength - targetLength);
         
-        if (difference <= tolerance) {
-          return {
-            possible: true,
-            fires: [fire1, fire2],
-            actualLength: totalLength,
-            difference: difference
-          };
-        }
+        combinations.push({
+          fires: [fire1, fire2],
+          totalLength: totalLength,
+          type: 'double'
+        });
       }
     }
     
-    // Üç parça kombinasyonu
+    // Üç parça kombinasyonları
     for (let i = 0; i < fires.length; i++) {
       for (let j = i + 1; j < fires.length; j++) {
         for (let k = j + 1; k < fires.length; k++) {
           const fire1 = fires[i];
           const fire2 = fires[j];
           const fire3 = fires[k];
-          
-          if (fire1.used || fire2.used || fire3.used) continue;
-          
           const totalLength = fire1.length + fire2.length + fire3.length - (this.weldTolerance * 2);
-          const difference = Math.abs(totalLength - targetLength);
           
-          if (difference <= tolerance) {
-            return {
-              possible: true,
-              fires: [fire1, fire2, fire3],
-              actualLength: totalLength,
-              difference: difference
-            };
-          }
+          combinations.push({
+            fires: [fire1, fire2, fire3],
+            totalLength: totalLength,
+            type: 'triple'
+          });
         }
       }
     }
     
-    return { possible: false };
+    console.log(`🔗 ${combinations.length} adet fire kombinasyonu bulundu`);
+    return combinations;
   }
   
   /**
-   * Kaynak ile optimizasyon dene
+   * Fire kombinasyonları ile optimizasyon yap
    */
-  tryOptimizeWithWelding(originalParts, targetLength, weldInfo, stockBars, weldedParts) {
-    // Bu uzunlukta kaç parça gerekiyor?
-    const neededCount = originalParts.filter(p => p.length === targetLength).length;
-    const currentWeldedCount = weldedParts.filter(w => w.targetLength === targetLength).length;
+  optimizeWithFireCombinations(initialPlan, fireAnalysis, remainingParts) {
+    console.log('\n💡 Fire kombinasyonları ile optimizasyon...');
     
-    if (currentWeldedCount >= neededCount) {
-      console.log(`  ⏭️ ${targetLength}mm için yeterli kaynaklı parça var`);
-      return false;
-    }
+    // Hangi uzunluklar gerekiyor?
+    const neededLengths = [...new Set(remainingParts.map(p => p.length))];
+    console.log('🎯 Gerekli uzunluklar:', neededLengths);
     
-    // Kaynaklı parça oluştur
-    const weldedPart = {
-      position: `W${weldedParts.length + 1}-${targetLength}`,
-      targetLength: targetLength,
-      actualLength: weldInfo.actualLength,
-      tolerance: weldInfo.difference,
-      pieces: weldInfo.fires.map(fire => ({
-        name: fire.name,
-        length: fire.length
-      }))
-    };
+    const optimizedPlan = [...initialPlan];
+    const usedCombinations = [];
     
-    weldedParts.push(weldedPart);
-    
-    const fireNames = weldInfo.fires.map(f => `${f.name}(${f.length}mm)`).join(' + ');
-    console.log(`  ✅ ${weldedPart.position}: ${fireNames} = ${weldInfo.actualLength}mm (hedef: ${targetLength}mm)`);
-    
-    // Fire'ları kullanıldı olarak işaretle (stockBars'da)
-    weldInfo.fires.forEach(fire => {
-      const stockBar = stockBars[fire.stockBarIndex];
-      if (stockBar) {
-        stockBar.remainingLength = 0; // Fire kullanıldı
+    // Her gerekli uzunluk için fire kombinasyonu ara
+    neededLengths.forEach(targetLength => {
+      const bestCombination = this.findBestFireCombination(fireAnalysis.combinations, targetLength, usedCombinations);
+      
+      if (bestCombination) {
+        console.log(`✅ ${targetLength}mm için fire kombinasyonu bulundu!`);
+        console.log(`   ${bestCombination.fires.map(f => `${f.name}(${f.length}mm)`).join(' + ')} = ${bestCombination.totalLength}mm`);
+        
+        // Bu kombinasyonu kullan
+        usedCombinations.push(bestCombination);
+        
+        // İlgili profilleri güncelle (fire'ları sıfırla)
+        bestCombination.fires.forEach(fire => {
+          const bar = optimizedPlan[fire.barIndex];
+          if (bar) {
+            bar.remainingLength = 0; // Fire kullanıldı
+            bar.fireUsed = true;
+          }
+        });
+        
+        // Yeni bir "sanal" profil ekle (kaynaklı parça için)
+        optimizedPlan.push({
+          id: `W${usedCombinations.length}`,
+          cuts: [{
+            position: `${targetLength}mm-WELDED`,
+            length: bestCombination.totalLength
+          }],
+          remainingLength: this.stockLength - bestCombination.totalLength,
+          isWelded: true,
+          weldedFrom: bestCombination.fires.map(f => f.name)
+        });
+        
+        // Bu uzunluktaki bir parçayı "karşılandı" olarak işaretle
+        const partIndex = remainingParts.findIndex(p => p.length === targetLength);
+        if (partIndex !== -1) {
+          remainingParts.splice(partIndex, 1);
+          console.log(`   ✅ ${targetLength}mm parça fire kombinasyonu ile karşılandı`);
+        }
       }
     });
     
-    return true;
+    console.log(`🎯 ${usedCombinations.length} adet fire kombinasyonu kullanıldı`);
+    
+    return {
+      plan: optimizedPlan,
+      usedCombinations: usedCombinations,
+      remainingParts: remainingParts
+    };
+  }
+  
+  /**
+   * En iyi fire kombinasyonunu bul
+   */
+  findBestFireCombination(combinations, targetLength, usedCombinations) {
+    let bestCombination = null;
+    let bestDifference = Infinity;
+    
+    combinations.forEach(combination => {
+      // Bu kombinasyon zaten kullanıldı mı?
+      const alreadyUsed = usedCombinations.some(used => 
+        used.fires.every(fire => combination.fires.some(f => f.name === fire.name))
+      );
+      
+      if (alreadyUsed) return;
+      
+      const difference = Math.abs(combination.totalLength - targetLength);
+      const tolerance = this.calculateWeldTolerance(targetLength);
+      
+      if (difference <= tolerance && difference < bestDifference) {
+        bestCombination = combination;
+        bestDifference = difference;
+      }
+    });
+    
+    return bestCombination;
+  }
+  
+  /**
+   * Final kesimi gerçekleştir
+   */
+  executeFinalCutting(optimizedResult, weldedParts) {
+    console.log('\n🏁 FINAL KESİM GERÇEKLEŞTİRİLİYOR...');
+    
+    const { plan, usedCombinations, remainingParts } = optimizedResult;
+    const stockBars = [];
+    
+    // Kalan parçalar için yeni profiller ekle
+    if (remainingParts.length > 0) {
+      console.log(`📋 ${remainingParts.length} adet kalan parça için ek profiller...`);
+      
+      let barId = plan.length + 1;
+      const tempParts = [...remainingParts];
+      
+      while (tempParts.length > 0) {
+        const bar = {
+          id: barId++,
+          cuts: [],
+          remainingLength: this.stockLength
+        };
+        
+        let placed = true;
+        while (placed) {
+          placed = false;
+          
+          for (let i = 0; i < tempParts.length; i++) {
+            const part = tempParts[i];
+            
+            if (part.length <= bar.remainingLength) {
+              bar.cuts.push({
+                position: part.position,
+                length: part.length
+              });
+              
+              bar.remainingLength -= part.length;
+              tempParts.splice(i, 1);
+              placed = true;
+              break;
+            }
+          }
+        }
+        
+        plan.push(bar);
+      }
+    }
+    
+    // Plan'ı stockBars'a çevir
+    plan.forEach(bar => {
+      if (!bar.isWelded) {
+        const usedLength = this.stockLength - bar.remainingLength;
+        const efficiency = Math.round((usedLength / this.stockLength) * 100);
+        
+        stockBars.push({
+          id: bar.id,
+          cuts: bar.cuts,
+          remainingLength: bar.remainingLength,
+          efficiency: efficiency
+        });
+      }
+    });
+    
+    // Kaynaklı parçaları oluştur
+    usedCombinations.forEach((combination, index) => {
+      weldedParts.push({
+        position: `W${index + 1}`,
+        targetLength: combination.totalLength,
+        actualLength: combination.totalLength,
+        tolerance: 0,
+        pieces: combination.fires.map(fire => ({
+          name: fire.name,
+          length: fire.length
+        }))
+      });
+    });
+    
+    // Fire parçaları topla (son durum)
+    const finalFires = [];
+    stockBars.forEach((bar, index) => {
+      if (bar.remainingLength >= this.minFireLength) {
+        finalFires.push({
+          name: `F${index + 1}`,
+          length: bar.remainingLength,
+          stockBarIndex: index
+        });
+      }
+    });
+    
+    console.log(`🎯 SONUÇ: ${stockBars.length} profil, ${weldedParts.length} kaynaklı parça`);
+    
+    return {
+      stockBars: stockBars,
+      firePieces: finalFires,
+      weldedParts: weldedParts,
+      totalStockBars: stockBars.length,
+      materialUtilization: this.calculateMaterialUtilization(stockBars)
+    };
   }
   
   /**
