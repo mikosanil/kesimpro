@@ -289,5 +289,43 @@ class Visualizer {
       noWeldedElement.className = 'no-items-message';
       weldedPartsList.appendChild(noWeldedElement);
     }
+    
+    // DXF Export butonu ekle
+    this.addDXFExportButton(results);
+  }
+  
+  /**
+   * DXF Export butonu ekle
+   */
+  addDXFExportButton(results) {
+    const resultsContent = document.getElementById('results-content');
+    
+    // Önceki butonu kaldır
+    const existingButton = document.getElementById('dxf-export-btn');
+    if (existingButton) {
+      existingButton.remove();
+    }
+    
+    // DXF Export butonu oluştur
+    const exportButton = document.createElement('button');
+    exportButton.id = 'dxf-export-btn';
+    exportButton.className = 'btn-secondary';
+    exportButton.style.marginTop = '20px';
+    exportButton.innerHTML = '📄 DXF Olarak İndir';
+    exportButton.title = 'Kesim planını DXF formatında indir';
+    
+    exportButton.addEventListener('click', () => {
+      const stockLength = parseInt(document.getElementById('stock-length').value, 10) || 12000;
+      const dxfExporter = new DXFExporter();
+      dxfExporter.exportToDXF(results, stockLength);
+    });
+    
+    // Butonu summary'nin altına ekle
+    const summary = resultsContent.querySelector('.summary');
+    if (summary) {
+      summary.parentNode.insertBefore(exportButton, summary.nextSibling);
+    } else {
+      resultsContent.insertBefore(exportButton, resultsContent.firstChild);
+    }
   }
 }
